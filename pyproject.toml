@@ -24,7 +24,8 @@ simple-parsing = "^0.0.21"
 voicefixer = "^0.1.2"
 streamlit = "^1.18.1"
 gdown = "^4.6.4"
-bigvgan = {git = "https://github.com/152334H/BigVGAN.git"}
+bigvgan = { git = "https://github.com/jerryMeng100/BigVGAN.git", branch = "main" }
+
 
 [tool.poetry.dev-dependencies]
 black = "^23.1.0"
