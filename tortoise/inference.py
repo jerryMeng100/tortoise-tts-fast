@@ -5,6 +5,9 @@ from typing import List, Optional, Set, Union
 
 from tortoise.utils.audio import get_voices, load_audio, load_voices
 from tortoise.utils.text import split_and_recombine_text
+from voicefixer import VoiceFixer
+
+vfixer = VoiceFixer()
 
 
 def get_all_voices(extra_voice_dirs_str: str = ""):
@@ -85,6 +88,43 @@ import torch
 import torchaudio
 
 
+# Kindroid additions: simple tts, with voicefix
+def tts_single_nosave(
+    call_tts_with_voice: Callable[[str, tuple], Any],
+    text: str,
+    voice: Any,
+):
+    gen = call_tts_with_voice(text, voice)
+    if not isinstance(gen, list):
+        gen = [gen]
+    resampler = torchaudio.transforms.Resample(orig_freq=24000, new_freq=44100) #before fixing upsample
+
+    gen = [resampler(g.squeeze()) for g in gen]
+    return [vfixer.restore_inmem(g, cuda=True, mode=0) for g in gen]
+
+
+def tts_multi_nosave(
+    call_tts_with_voice: Callable[[str, tuple], Any],
+    texts: List[str],
+    voice: Any,
+):
+    audio_chunks = []
+    for text in texts:
+        audio_chunks.append(
+            tts_single_nosave(
+                call_tts_with_voice,
+                text,
+                voice,
+            )
+        )
+    results = []
+    for i in range(len(audio_chunks[0])):
+        resultant = torch.cat([c[i] for c in audio_chunks], dim=-1)
+        results.append(resultant)
+    return results
+
+
+# Older inference functions
 def run_and_save_tts(
     call_tts,
     text,
@@ -102,6 +142,7 @@ def run_and_save_tts(
     #
     if not isinstance(gen, list):
         gen = [gen]
+
     gen = [g.squeeze(0).cpu() for g in gen]
     fps = []
     for i, g in enumerate(gen):
@@ -160,11 +201,6 @@ def infer_on_texts(
         results.append(resultant)
         # torchaudio.save(base_p/'combined.wav', resultant, 24000)
     return fnames if return_filepaths else results
-
-
-from voicefixer import VoiceFixer
-
-vfixer = VoiceFixer()
 
 
 def save_gen_with_voicefix(g, fpath, squeeze=True, voicefixer=True):
